@@ -4,7 +4,7 @@ set -u
 set -e
 set -o pipefail
 
-BROWSERIFY_CMD="browserify -s detectEthereumProvider"
+BROWSERIFY_CMD="browserify -s detectProvider"
 
 mkdir -p ./dist
 rm -rf ./dist/*

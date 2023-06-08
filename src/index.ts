@@ -1,97 +1,114 @@
-interface MetaMaskEthereumProvider {
-  isMetaMask?: boolean;
-  once(eventName: string | symbol, listener: (...args: any[]) => void): this;
-  on(eventName: string | symbol, listener: (...args: any[]) => void): this;
-  off(eventName: string | symbol, listener: (...args: any[]) => void): this;
-  addListener(eventName: string | symbol, listener: (...args: any[]) => void): this;
-  removeListener(eventName: string | symbol, listener: (...args: any[]) => void): this;
-  removeAllListeners(event?: string | symbol): this;
-}
-
-interface Window {
-  ethereum?: MetaMaskEthereumProvider;
-}
-
-export = detectEthereumProvider;
-
-/**
- * Returns a Promise that resolves to the value of window.ethereum if it is
- * set within the given timeout, or null.
- * The Promise will not reject, but an error will be thrown if invalid options
- * are provided.
- *
- * @param options - Options bag.
- * @param options.mustBeMetaMask - Whether to only look for MetaMask providers.
- * Default: false
- * @param options.silent - Whether to silence console errors. Does not affect
- * thrown errors. Default: false
- * @param options.timeout - Milliseconds to wait for 'ethereum#initialized' to
- * be dispatched. Default: 3000
- * @returns A Promise that resolves with the Provider if it is detected within
- * given timeout, otherwise null.
- */
-function detectEthereumProvider<T = MetaMaskEthereumProvider>({
-  mustBeMetaMask = false,
-  silent = false,
-  timeout = 3000,
-} = {}): Promise<T | null> {
-
-  _validateInputs();
-
+function detectProvider<T extends Object>(
+  {
+    silent,
+    timeout,
+    walletFlag,
+    isSingleWalletFlag,
+    injectFlag,
+    defaultWalletFlag,
+  }: {
+    silent?: boolean;
+    timeout?: number;
+    walletFlag?: string;
+    isSingleWalletFlag?: boolean;
+    injectFlag: string;
+    defaultWalletFlag?: string;
+  } = {
+    silent: false,
+    timeout: 1500,
+    injectFlag: "ethereum",
+  }
+): Promise<T> {
   let handled = false;
 
-  return new Promise((resolve) => {
-    if ((window as Window).ethereum) {
-
+  return new Promise((resolve, reject) => {
+    if ((globalThis as any)[injectFlag]) {
       handleEthereum();
-
     } else {
+      globalThis.addEventListener(`${injectFlag}#initialized`, handleEthereum, {
+        once: true,
+      });
 
-      window.addEventListener(
-        'ethereum#initialized',
-        handleEthereum,
-        { once: true },
-      );
-
-      setTimeout(() => {
+      if (Number(timeout) > 0) {
+        setTimeout(() => {
+          handleEthereum();
+        }, timeout);
+      } else {
         handleEthereum();
-      }, timeout);
+      }
     }
 
     function handleEthereum() {
-
       if (handled) {
         return;
       }
       handled = true;
 
-      window.removeEventListener('ethereum#initialized', handleEthereum);
+      globalThis.removeEventListener(
+        `${injectFlag}#initialized`,
+        handleEthereum
+      );
 
-      const { ethereum } = window as Window;
+      let provider = (globalThis as any)[injectFlag] as T;
+      if (!provider) {
+        return reject(`Unable to detect window.${injectFlag}.`);
+      }
 
-      if (ethereum && (!mustBeMetaMask || ethereum.isMetaMask)) {
-        resolve(ethereum as unknown as T);
+      let mustBeSpecifiedWallet = false;
+      let isSpecifiedWallet = false;
+
+      // edge case if e.g. metamask and coinbase wallet are both installed
+      const providers = (provider as any).providers;
+      if (providers?.length) {
+        if (typeof walletFlag !== "string" || !walletFlag) {
+          if (defaultWalletFlag) {
+            provider = providers.find((provider: any) =>
+              judgeIsSpecifiedWallet(
+                provider,
+                defaultWalletFlag,
+                isSingleWalletFlag
+              )
+            );
+          } else {
+            provider = providers[0];
+          }
+        } else {
+          provider = providers.find((provider: any) =>
+            judgeIsSpecifiedWallet(provider, walletFlag!, isSingleWalletFlag)
+          );
+        }
       } else {
+        mustBeSpecifiedWallet = typeof walletFlag === "string" && !!walletFlag;
+        isSpecifiedWallet =
+          mustBeSpecifiedWallet &&
+          judgeIsSpecifiedWallet(provider, walletFlag!, isSingleWalletFlag);
+      }
 
-        const message = mustBeMetaMask && ethereum
-          ? 'Non-MetaMask window.ethereum detected.'
-          : 'Unable to detect window.ethereum.';
-
-        !silent && console.error('@metamask/detect-provider:', message);
-        resolve(null);
+      if ((provider && !mustBeSpecifiedWallet) || isSpecifiedWallet) {
+        resolve(provider);
+      } else {
+        const message = `Non-${walletFlag} Wallet detected.`;
+        !silent && console.error("detect-provider:", message);
+        reject(message);
       }
     }
   });
-
-  function _validateInputs() {
-    if (typeof mustBeMetaMask !== 'boolean') {
-      throw new Error(`@metamask/detect-provider: Expected option 'mustBeMetaMask' to be a boolean.`);
-    }
-    if (typeof silent !== 'boolean') {
-      throw new Error(`@metamask/detect-provider: Expected option 'silent' to be a boolean.`);
-    }
-    if (typeof timeout !== 'number') {
-      throw new Error(`@metamask/detect-provider: Expected option 'timeout' to be a number.`);
-    }
-  }
 }
+
+function judgeIsSpecifiedWallet(
+  provider: any,
+  walletFlag: string,
+  isSingleWalletFlag: boolean = false
+) {
+  const walletFlagKeys = provider
+    ? Object.keys(provider).filter((key) => key?.startsWith("is"))
+    : [];
+  return (
+    !!provider &&
+    (isSingleWalletFlag
+      ? walletFlagKeys.length === 1 && walletFlagKeys[0] === walletFlag
+      : walletFlagKeys.includes(walletFlag))
+  );
+}
+
+export = detectProvider;
