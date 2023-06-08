@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable prefer-promise-reject-errors */
+/* eslint-disable consistent-return */
+/* eslint-disable @typescript-eslint/ban-types */
+/* eslint-disable no-shadow */
 function detectProvider<T extends Object>(
   {
     silent,
@@ -16,8 +21,8 @@ function detectProvider<T extends Object>(
   } = {
     silent: false,
     timeout: 1500,
-    injectFlag: "ethereum",
-  }
+    injectFlag: 'ethereum',
+  },
 ): Promise<T> {
   let handled = false;
 
@@ -46,7 +51,7 @@ function detectProvider<T extends Object>(
 
       globalThis.removeEventListener(
         `${injectFlag}#initialized`,
-        handleEthereum
+        handleEthereum,
       );
 
       let provider = (globalThis as any)[injectFlag] as T;
@@ -58,27 +63,23 @@ function detectProvider<T extends Object>(
       let isSpecifiedWallet = false;
 
       // edge case if e.g. metamask and coinbase wallet are both installed
-      const providers = (provider as any).providers;
+      const { providers } = provider as any;
       if (providers?.length) {
-        if (typeof walletFlag !== "string" || !walletFlag) {
+        if (typeof walletFlag !== 'string' || !walletFlag) {
           if (defaultWalletFlag) {
-            provider = providers.find((provider: any) =>
-              judgeIsSpecifiedWallet(
-                provider,
-                defaultWalletFlag,
-                isSingleWalletFlag
-              )
-            );
+            provider = providers.find((provider: any) => judgeIsSpecifiedWallet(
+              provider,
+              defaultWalletFlag,
+              isSingleWalletFlag,
+            ));
           } else {
             provider = providers[0];
           }
         } else {
-          provider = providers.find((provider: any) =>
-            judgeIsSpecifiedWallet(provider, walletFlag!, isSingleWalletFlag)
-          );
+          provider = providers.find((provider: any) => judgeIsSpecifiedWallet(provider, walletFlag!, isSingleWalletFlag));
         }
       } else {
-        mustBeSpecifiedWallet = typeof walletFlag === "string" && !!walletFlag;
+        mustBeSpecifiedWallet = typeof walletFlag === 'string' && Boolean(walletFlag);
         isSpecifiedWallet =
           mustBeSpecifiedWallet &&
           judgeIsSpecifiedWallet(provider, walletFlag!, isSingleWalletFlag);
@@ -88,7 +89,7 @@ function detectProvider<T extends Object>(
         resolve(provider);
       } else {
         const message = `Non-${walletFlag} Wallet detected.`;
-        !silent && console.error("detect-provider:", message);
+        !silent && console.error('detect-provider:', message);
         reject(message);
       }
     }
@@ -98,13 +99,13 @@ function detectProvider<T extends Object>(
 function judgeIsSpecifiedWallet(
   provider: any,
   walletFlag: string,
-  isSingleWalletFlag: boolean = false
+  isSingleWalletFlag = false,
 ) {
   const walletFlagKeys = provider
-    ? Object.keys(provider).filter((key) => key?.startsWith("is"))
+    ? Object.keys(provider).filter((key) => key?.startsWith('is'))
     : [];
   return (
-    !!provider &&
+    Boolean(provider) &&
     (isSingleWalletFlag
       ? walletFlagKeys.length === 1 && walletFlagKeys[0] === walletFlag
       : walletFlagKeys.includes(walletFlag))

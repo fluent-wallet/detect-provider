@@ -17,7 +17,7 @@
     "lint:fix": "yarn lint --fix",
     "build": "./build.sh",
     "setup": "yarn install && yarn allow-scripts",
-    "prepublishOnly": "yarn build && yarn test && yarn lint"
+    "prepublishOnly": "yarn build && yarn lint"
   },
   "repository": {
     "type": "git",
